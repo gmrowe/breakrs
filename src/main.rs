@@ -8,9 +8,7 @@ const CYAN: u32 = 0x00FFFF;
 
 const BG_COLOR: u32 = CYAN;
 const BALL_COLOR: u32 = MAGENTA;
-const BALL_DIAMETER: usize = 32;
-// const BALL_WIDTH: usize = BALL_DIAMETER;
-// const BALL_HEIGHT: usize = BALL_DIAMETER;
+const BALL_DIAMETER: usize = 8;
 
 type Res<T> = Result<T, ()>;
 
@@ -114,6 +112,11 @@ pub fn main() -> Res<()> {
                     let (dx, dy) = ball_vel;
                     ball_vel = (dx * 1.05, dy * 1.05);
                 }
+            }
+
+            Key::Minus => {
+                let (dx, dy) = ball_vel;
+                ball_vel = (dx * 0.95, dy * 0.95);
             }
 
             _ => (),
