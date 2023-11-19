@@ -8,8 +8,8 @@ const CYAN: u32 = 0x00FFFF;
 
 const BG_COLOR: u32 = CYAN;
 const BALL_COLOR: u32 = MAGENTA;
-const BALL_WIDTH: usize = 8;
-const BALL_HEIGHT: usize = 8;
+const BALL_WIDTH: usize = 32;
+const BALL_HEIGHT: usize = 32;
 
 type Res<T> = Result<T, ()>;
 
@@ -49,7 +49,7 @@ pub fn main() -> Res<()> {
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
     let mut ball_pos: (f32, f32) = (0.0, 0.0);
-    let mut ball_vel: (f32, f32) = (0.05, -0.08);
+    let mut ball_vel: (f32, f32) = (0.005, -0.002);
     const MAX_X: f32 = 1.0 - (BALL_WIDTH as f32 / WIDTH as f32 * 2.0);
     const MAX_Y: f32 = 1.0 - (BALL_HEIGHT as f32 / HEIGHT as f32 * 2.0);
 
@@ -57,8 +57,8 @@ pub fn main() -> Res<()> {
         let (x, y) = ball_pos;
         let (dx, dy) = ball_vel;
 
-        let tick_x = (x + dx).clamp(-1.0, MAX_X);
-        let tick_y = (y + dy).clamp(-1.0, MAX_Y);
+        let tick_x = x + dx;
+        let tick_y = y + dy;
 
         let dir_x = if tick_x > -1.0 && tick_x < MAX_X {
             dx
@@ -72,7 +72,23 @@ pub fn main() -> Res<()> {
             -dy
         };
 
-        ball_pos = (tick_x, tick_y);
+        let pos_x = if tick_x > MAX_X {
+            MAX_X - (tick_x - MAX_X)
+        } else if tick_x < -1.0 {
+            -1.0 + (-1.0 - tick_x)
+        } else {
+            tick_x
+        };
+
+        let pos_y = if tick_y > MAX_Y {
+            MAX_Y - (tick_y - MAX_Y)
+        } else if tick_y < -1.0 {
+            -1.0 + (-1.0 - tick_y)
+        } else {
+            tick_y
+        };
+
+        ball_pos = (pos_x, pos_y);
         ball_vel = (dir_x, dir_y);
 
         draw_ball(&mut buffer, to_screen_coords(ball_pos));
