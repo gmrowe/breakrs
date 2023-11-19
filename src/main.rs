@@ -13,16 +13,18 @@ const BALL_HEIGHT: usize = 8;
 
 type Res<T> = Result<T, ()>;
 
-fn draw_ball(canvas: &mut [u32], pos: (f32, f32)) {
-    dbg!(pos);
-    canvas.fill(BG_COLOR);
-
-    let (world_x, world_y) = pos;
+fn to_screen_coords(world_coords: (f32, f32)) -> (usize, usize) {
+    let (world_x, world_y) = world_coords;
     let half_width = (WIDTH as f32) / 2.0;
-    let x = (half_width + world_x.signum() * half_width * world_x) as usize;
-
     let half_height = (HEIGHT as f32) / 2.0;
-    let y = (half_height + world_y.signum() * half_height * world_y) as usize;
+    let x = (half_width + half_width * world_x) as usize;
+    let y = (half_height + half_height * world_y) as usize;
+    (x, y)
+}
+
+fn draw_ball(canvas: &mut [u32], pos: (usize, usize)) {
+    let (x, y) = pos;
+    canvas.fill(BG_COLOR);
 
     for row in y..y + BALL_HEIGHT {
         let col0 = row * WIDTH + x;
@@ -34,7 +36,7 @@ pub fn main() -> Res<()> {
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
     let mut window = Window::new(
-        "Test - ESC to exit",
+        "BREAKRS - ESC to exit",
         WIDTH,
         HEIGHT,
         WindowOptions::default(),
@@ -48,21 +50,23 @@ pub fn main() -> Res<()> {
 
     let mut ball_pos: (f32, f32) = (0.0, 0.0);
     let mut ball_vel: (f32, f32) = (0.05, -0.08);
+    const MAX_X: f32 = 1.0 - (BALL_WIDTH as f32 / WIDTH as f32 * 2.0);
+    const MAX_Y: f32 = 1.0 - (BALL_HEIGHT as f32 / HEIGHT as f32 * 2.0);
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let (x, y) = ball_pos;
         let (dx, dy) = ball_vel;
 
-        let tick_x = (x + dx).clamp(-1.0, 1.0);
-        let tick_y = (y + dy).clamp(-1.0, 1.0);
+        let tick_x = (x + dx).clamp(-1.0, MAX_X);
+        let tick_y = (y + dy).clamp(-1.0, MAX_Y);
 
-        let dir_x = if tick_x > -1.0 && tick_x < 1.0 {
+        let dir_x = if tick_x > -1.0 && tick_x < MAX_X {
             dx
         } else {
             -dx
         };
 
-        let dir_y = if tick_y > -1.0 && tick_y < 1.0 {
+        let dir_y = if tick_y > -1.0 && tick_y < MAX_Y {
             dy
         } else {
             -dy
@@ -71,7 +75,7 @@ pub fn main() -> Res<()> {
         ball_pos = (tick_x, tick_y);
         ball_vel = (dir_x, dir_y);
 
-        draw_ball(&mut buffer, ball_pos);
+        draw_ball(&mut buffer, to_screen_coords(ball_pos));
         // We unwrap here as we want this code to exit if it fails. Real applications may want to handle this in a different way
         window
             .update_with_buffer(&buffer, WIDTH, HEIGHT)
