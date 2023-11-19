@@ -8,8 +8,9 @@ const CYAN: u32 = 0x00FFFF;
 
 const BG_COLOR: u32 = CYAN;
 const BALL_COLOR: u32 = MAGENTA;
-const BALL_WIDTH: usize = 32;
-const BALL_HEIGHT: usize = 32;
+const BALL_DIAMETER: usize = 32;
+// const BALL_WIDTH: usize = BALL_DIAMETER;
+// const BALL_HEIGHT: usize = BALL_DIAMETER;
 
 type Res<T> = Result<T, ()>;
 
@@ -24,11 +25,19 @@ fn to_screen_coords(world_coords: (f32, f32)) -> (usize, usize) {
 
 fn draw_ball(canvas: &mut [u32], pos: (usize, usize)) {
     let (x, y) = pos;
+    let radius = BALL_DIAMETER / 2;
+    let (center_x, center_y) = (x + radius, y + radius);
     canvas.fill(BG_COLOR);
 
-    for row in y..y + BALL_HEIGHT {
-        let col0 = row * WIDTH + x;
-        canvas[col0..col0 + BALL_WIDTH].fill(BALL_COLOR);
+    for row in y..y + BALL_DIAMETER {
+        for col in x..x + BALL_DIAMETER {
+            let delta_x = center_x.abs_diff(col);
+            let delta_y = center_y.abs_diff(row);
+            if delta_x * delta_x + delta_y * delta_y < radius * radius {
+                let index = row * WIDTH + col;
+                canvas[index] = BALL_COLOR;
+            }
+        }
     }
 }
 
@@ -50,8 +59,8 @@ pub fn main() -> Res<()> {
 
     let mut ball_pos: (f32, f32) = (0.0, 0.0);
     let mut ball_vel: (f32, f32) = (0.005, -0.002);
-    const MAX_X: f32 = 1.0 - (BALL_WIDTH as f32 / WIDTH as f32 * 2.0);
-    const MAX_Y: f32 = 1.0 - (BALL_HEIGHT as f32 / HEIGHT as f32 * 2.0);
+    const MAX_X: f32 = 1.0 - (BALL_DIAMETER as f32 / WIDTH as f32 * 2.0);
+    const MAX_Y: f32 = 1.0 - (BALL_DIAMETER as f32 / HEIGHT as f32 * 2.0);
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let (x, y) = ball_pos;
