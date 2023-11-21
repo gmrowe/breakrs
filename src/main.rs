@@ -17,10 +17,8 @@ const DEBUG_TEXT_SIZE: f32 = 12.0;
 type Res<T> = Result<T, ()>;
 
 fn to_screen_coords(world_x: f32, world_y: f32) -> (usize, usize) {
-    let half_width = (WIDTH as f32) / 2.0;
-    let half_height = (HEIGHT as f32) / 2.0;
-    let x = (half_width + half_width * world_x) as usize;
-    let y = (half_height + half_height * world_y) as usize;
+    let x = (WIDTH as f32 * (1.0 + world_x) / 2.0) as usize;
+    let y = (HEIGHT as f32 * (1.0 + world_y) / 2.0) as usize;
     (x, y)
 }
 
