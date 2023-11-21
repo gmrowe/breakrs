@@ -16,8 +16,7 @@ const DEBUG_TEXT_SIZE: f32 = 12.0;
 
 type Res<T> = Result<T, ()>;
 
-fn to_screen_coords(world_coords: (f32, f32)) -> (usize, usize) {
-    let (world_x, world_y) = world_coords;
+fn to_screen_coords(world_x: f32, world_y: f32) -> (usize, usize) {
     let half_width = (WIDTH as f32) / 2.0;
     let half_height = (HEIGHT as f32) / 2.0;
     let x = (half_width + half_width * world_x) as usize;
@@ -87,23 +86,17 @@ fn compute_multiline_text_data(font: &Font, text_height: f32, text: &[&str]) -> 
         .iter()
         .map(|s| compute_text_data(font, text_height, s))
         .collect::<Vec<_>>();
-    let total_len = lines.iter().map(|(data, _)| data.len()).sum();
-
     let max_stride = lines.iter().map(|&(_, stride)| stride).max().unwrap_or(0);
-    let mut multi_line = Vec::with_capacity(total_len);
-    for (line, len) in lines.into_iter() {
-        let height = line.len() / len;
-        if len < max_stride {
-            let mut new_line = Vec::new();
-            let extension = vec![0xFFFFFF_u32; max_stride - len];
-            for y in 0..height {
-                new_line.extend_from_slice(&line[len * y..len * y + len]);
-                new_line.extend(&extension)
-            }
-            multi_line.append(&mut new_line);
-        } else {
-            multi_line.extend_from_slice(&line)
+    let mut multi_line = Vec::new();
+    for (line, stride) in lines.into_iter() {
+        let height = line.len() / stride;
+        let mut new_line = Vec::new();
+        let extension = vec![0xFFFFFF_u32; max_stride - stride];
+        for y in 0..height {
+            new_line.extend_from_slice(&line[stride * y..stride * y + stride]);
+            new_line.extend(&extension)
         }
+        multi_line.append(&mut new_line);
     }
     (multi_line, max_stride)
 }
@@ -125,21 +118,66 @@ fn render_text(
     }
 }
 
-fn render_debug_stats(
-    canvas: &mut [u32],
-    font: &Font,
-    text_height: f32,
-    ball_pos: (f32, f32),
-    ball_vel: (f32, f32),
-) {
-    let (pos_x, pos_y) = ball_pos;
-    let (vel_x, vel_y) = ball_vel;
-    let position = format!("pos: ({pos_x:+.3}, {pos_y:+.3})");
-    let velocity = format!("vel: ({vel_x:+.3}, {vel_y:+.3})");
+fn render_debug_stats(canvas: &mut [u32], font: &Font, text_height: f32, game_state: &GameState) {
+    let position = format!(
+        "pos: ({pos_x:+.3}, {pos_y:+.3})",
+        pos_x = game_state.ball_pos_x,
+        pos_y = game_state.ball_pos_y
+    );
+    let velocity = format!(
+        "velocity: ({vel_x:+.3}, {vel_y:+.3})",
+        vel_x = game_state.ball_vel_x,
+        vel_y = game_state.ball_vel_y
+    );
     let (text_data, stride) =
         compute_multiline_text_data(font, text_height, &[&position, &velocity]);
-    //let data_height = text_data.len() / stride;
     render_text(canvas, WIDTH, &text_data, stride, (0, 0));
+}
+
+struct GameState {
+    ball_pos_x: f32,
+    ball_pos_y: f32,
+    ball_vel_x: f32,
+    ball_vel_y: f32,
+}
+
+impl GameState {
+    fn tick(&mut self) {
+        const MAX_X: f32 = 1.0 - (BALL_DIAMETER as f32 / WIDTH as f32 * 2.0);
+        const MAX_Y: f32 = 1.0 - (BALL_DIAMETER as f32 / HEIGHT as f32 * 2.0);
+
+        let dx = self.ball_pos_x + self.ball_vel_x;
+        let dy = self.ball_pos_y + self.ball_vel_y;
+
+        if dx <= -1.0 || dx >= MAX_X {
+            self.ball_vel_x = -self.ball_vel_x;
+        }
+
+        if dy <= -1.0 || dy >= MAX_Y {
+            self.ball_vel_y = -self.ball_vel_y;
+        }
+
+        self.ball_pos_x = if dx > MAX_X {
+            MAX_X - (dx - MAX_X)
+        } else if dx < -1.0 {
+            -1.0 + (-1.0 - dx)
+        } else {
+            dx
+        };
+
+        self.ball_pos_y = if dy > MAX_Y {
+            MAX_Y - (dy - MAX_Y)
+        } else if dy < -1.0 {
+            -1.0 + (-1.0 - dy)
+        } else {
+            dy
+        };
+    }
+
+    fn update_ball_speed(&mut self, factor: f32) {
+        self.ball_vel_x *= factor;
+        self.ball_vel_y *= factor;
+    }
 }
 
 pub fn main() -> Res<()> {
@@ -164,56 +202,26 @@ pub fn main() -> Res<()> {
         })
     };
 
+    let mut game_state = GameState {
+        ball_pos_x: 0.0,
+        ball_pos_y: 0.0,
+        ball_vel_x: 0.005,
+        ball_vel_y: -0.002,
+    };
+
     // Limit to max ~60 fps update rate
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-    let mut ball_pos: (f32, f32) = (0.0, 0.0);
-    let mut ball_vel: (f32, f32) = (0.005, -0.002);
-    const MAX_X: f32 = 1.0 - (BALL_DIAMETER as f32 / WIDTH as f32 * 2.0);
-    const MAX_Y: f32 = 1.0 - (BALL_DIAMETER as f32 / HEIGHT as f32 * 2.0);
-
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        let (x, y) = ball_pos;
-        let (dx, dy) = ball_vel;
+        game_state.tick();
 
-        let tick_x = x + dx;
-        let tick_y = y + dy;
-
-        let dir_x = if tick_x > -1.0 && tick_x < MAX_X {
-            dx
-        } else {
-            -dx
-        };
-
-        let dir_y = if tick_y > -1.0 && tick_y < MAX_Y {
-            dy
-        } else {
-            -dy
-        };
-
-        let pos_x = if tick_x > MAX_X {
-            MAX_X - (tick_x - MAX_X)
-        } else if tick_x < -1.0 {
-            -1.0 + (-1.0 - tick_x)
-        } else {
-            tick_x
-        };
-
-        let pos_y = if tick_y > MAX_Y {
-            MAX_Y - (tick_y - MAX_Y)
-        } else if tick_y < -1.0 {
-            -1.0 + (-1.0 - tick_y)
-        } else {
-            tick_y
-        };
-
-        ball_pos = (pos_x, pos_y);
-        ball_vel = (dir_x, dir_y);
-
-        draw_ball(&mut buffer, to_screen_coords(ball_pos));
+        draw_ball(
+            &mut buffer,
+            to_screen_coords(game_state.ball_pos_x, game_state.ball_pos_y),
+        );
 
         if DEBUG_STATS {
-            render_debug_stats(&mut buffer, &font, DEBUG_TEXT_SIZE, ball_pos, ball_vel);
+            render_debug_stats(&mut buffer, &font, DEBUG_TEXT_SIZE, &game_state);
         }
 
         window
@@ -225,14 +233,12 @@ pub fn main() -> Res<()> {
         window.get_keys().iter().for_each(|key| match key {
             Key::LeftShift | Key::RightShift => {
                 if window.is_key_down(Key::Equal) {
-                    let (dx, dy) = ball_vel;
-                    ball_vel = (dx * 1.05, dy * 1.05);
+                    game_state.update_ball_speed(1.05);
                 }
             }
 
             Key::Minus => {
-                let (dx, dy) = ball_vel;
-                ball_vel = (dx * 0.95, dy * 0.95);
+                game_state.update_ball_speed(0.95);
             }
 
             _ => (),
