@@ -1,8 +1,8 @@
 use minifb::{Key, Window, WindowOptions};
 use rusttype::{point, Font, Scale};
 
-const WIDTH: usize = 400;
-const HEIGHT: usize = 400;
+const WIDTH: usize = 600;
+const HEIGHT: usize = 600;
 
 const MAGENTA: u32 = 0xFF00FF;
 const CYAN: u32 = 0x00FFFF;
@@ -12,7 +12,7 @@ const BALL_COLOR: u32 = MAGENTA;
 const BALL_DIAMETER: usize = 8;
 
 const DEBUG_STATS: bool = true;
-const DEBUG_TEXT_SIZE: f32 = 12.0;
+const DEBUG_TEXT_SIZE: f32 = 16.0;
 
 type Res<T> = Result<T, ()>;
 
@@ -22,22 +22,32 @@ fn to_screen_coords(world_x: f32, world_y: f32) -> (usize, usize) {
     (x, y)
 }
 
-fn draw_ball(canvas: &mut [u32], pos: (usize, usize)) {
-    let (x, y) = pos;
-    let radius = BALL_DIAMETER / 2;
-    let (center_x, center_y) = (x + radius, y + radius);
-    canvas.fill(BG_COLOR);
-
-    for row in y..y + BALL_DIAMETER {
-        for col in x..x + BALL_DIAMETER {
+fn draw_circle(
+    canvas: &mut [u32],
+    canvas_stride: usize,
+    x: usize,
+    y: usize,
+    diameter: usize,
+    color: u32,
+) {
+    let radius = diameter / 2;
+    let center_x = x + radius;
+    let center_y = y + radius;
+    for row in y..y + diameter {
+        for col in x..x + diameter {
             let delta_x = center_x.abs_diff(col);
             let delta_y = center_y.abs_diff(row);
-            if delta_x * delta_x + delta_y * delta_y < radius * radius {
-                let index = row * WIDTH + col;
-                canvas[index] = BALL_COLOR;
+            if delta_x * delta_x + delta_y * delta_y <= radius * radius {
+                canvas[row * canvas_stride + col] = color;
             }
         }
     }
+}
+
+fn draw_ball(canvas: &mut [u32], pos: (usize, usize)) {
+    let (x, y) = pos;
+    canvas.fill(BG_COLOR);
+    draw_circle(canvas, WIDTH, x, y, BALL_DIAMETER, BALL_COLOR);
 }
 
 fn compute_text_data(font: &Font, text_height: f32, text: &str) -> (Vec<u32>, usize) {
@@ -99,7 +109,7 @@ fn compute_multiline_text_data(font: &Font, text_height: f32, text: &[&str]) -> 
     (multi_line, max_stride)
 }
 
-fn render_text(
+fn draw_text(
     canvas: &mut [u32],
     canvas_stride: usize,
     text_data: &[u32],
@@ -116,7 +126,7 @@ fn render_text(
     }
 }
 
-fn render_debug_stats(canvas: &mut [u32], font: &Font, text_height: f32, game_state: &GameState) {
+fn draw_debug_stats(canvas: &mut [u32], font: &Font, text_height: f32, game_state: &GameState) {
     let position = format!(
         "pos: ({pos_x:+.3}, {pos_y:+.3})",
         pos_x = game_state.ball_pos_x,
@@ -129,7 +139,7 @@ fn render_debug_stats(canvas: &mut [u32], font: &Font, text_height: f32, game_st
     );
     let (text_data, stride) =
         compute_multiline_text_data(font, text_height, &[&position, &velocity]);
-    render_text(canvas, WIDTH, &text_data, stride, (0, 0));
+    draw_text(canvas, WIDTH, &text_data, stride, (0, 0));
 }
 
 struct GameState {
@@ -219,7 +229,7 @@ pub fn main() -> Res<()> {
         );
 
         if DEBUG_STATS {
-            render_debug_stats(&mut buffer, &font, DEBUG_TEXT_SIZE, &game_state);
+            draw_debug_stats(&mut buffer, &font, DEBUG_TEXT_SIZE, &game_state);
         }
 
         window
