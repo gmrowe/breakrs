@@ -15,7 +15,7 @@ type Res<T> = Result<T, ()>;
 
 fn to_screen_coords(world_x: f32, world_y: f32) -> (usize, usize) {
     let x = (WIDTH as f32 * (1.0 + world_x) / 2.0) as usize;
-    let y = (HEIGHT as f32 * (1.0 + world_y) / 2.0) as usize;
+    let y = HEIGHT - (HEIGHT as f32 * (1.0 + world_y) / 2.0) as usize;
     (x, y)
 }
 
@@ -138,7 +138,7 @@ fn draw_debug_stats(canvas: &mut [u32], font: &Font, text_height: f32, game_stat
         pos_y = game_state.ball_pos_y
     );
     let velocity = format!(
-        "velocity: ({vel_x:+.3}, {vel_y:+.3})",
+        "vel: ({vel_x:+.3}, {vel_y:+.3})",
         vel_x = game_state.ball_vel_x,
         vel_y = game_state.ball_vel_y
     );
@@ -159,13 +159,14 @@ struct GameState {
     paddle_pos_y: f32,
     paddle_width: f32,
     paddle_height: f32,
+    paddle_vel_x: f32,
     paddle_color: u32,
 }
 
 impl GameState {
-    fn tick(&mut self) {
+    fn update_ball_pos(&mut self) {
         let max_x = 1.0 - (self.ball_diameter * 2.0);
-        let max_y = 1.0 - (self.ball_diameter * 2.0);
+        let min_y = -1.0 + (self.ball_diameter * 2.0);
 
         let dx = self.ball_pos_x + self.ball_vel_x;
         let dy = self.ball_pos_y + self.ball_vel_y;
@@ -174,7 +175,7 @@ impl GameState {
             self.ball_vel_x = -self.ball_vel_x;
         }
 
-        if dy <= -1.0 || dy >= max_y {
+        if dy <= min_y || dy >= 1.0 {
             self.ball_vel_y = -self.ball_vel_y;
         }
 
@@ -186,13 +187,23 @@ impl GameState {
             dx
         };
 
-        self.ball_pos_y = if dy > max_y {
-            max_y - (dy - max_y)
-        } else if dy < -1.0 {
-            -1.0 + (-1.0 - dy)
+        self.ball_pos_y = if dy > 1.0 {
+            1.0 - (dy - 1.0)
+        } else if dy < min_y {
+            min_y + (min_y - dy)
         } else {
             dy
         };
+    }
+
+    fn update_paddle_pos(&mut self) {
+        let max_x = 1.0 - (self.paddle_width * 2.0);
+        self.paddle_pos_x = (self.paddle_pos_x + self.paddle_vel_x).clamp(-1.0, max_x);
+    }
+
+    fn tick(&mut self) {
+        self.update_ball_pos();
+        self.update_paddle_pos();
     }
 
     fn update_ball_speed(&mut self, factor: f32) {
@@ -211,10 +222,11 @@ impl Default for GameState {
             ball_diameter: 0.0133,
             ball_color: MAGENTA,
             background_color: CYAN,
-            paddle_pos_x: 0.04,
+            paddle_pos_x: -0.04,
             paddle_pos_y: -0.8,
             paddle_width: 0.08,
             paddle_height: 0.02,
+            paddle_vel_x: 0.0,
             paddle_color: YELLOW,
         }
     }
@@ -284,6 +296,21 @@ pub fn main() -> Res<()> {
                 game_state.update_ball_speed(0.95);
             }
 
+            Key::A => {
+                game_state.paddle_vel_x = -0.01;
+            }
+
+            Key::D => {
+                game_state.paddle_vel_x = 0.01;
+            }
+
+            _ => (),
+        });
+
+        window.get_keys_released().iter().for_each(|key| match key {
+            Key::A | Key::D => {
+                game_state.paddle_vel_x = 0.0;
+            }
             _ => (),
         });
     }
