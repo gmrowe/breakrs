@@ -7,10 +7,6 @@ const HEIGHT: usize = 600;
 const MAGENTA: u32 = 0xFF00FF;
 const CYAN: u32 = 0x00FFFF;
 
-const BG_COLOR: u32 = CYAN;
-const BALL_COLOR: u32 = MAGENTA;
-const BALL_DIAMETER: usize = 8;
-
 const DEBUG_STATS: bool = true;
 const DEBUG_TEXT_SIZE: f32 = 16.0;
 
@@ -44,10 +40,18 @@ fn draw_circle(
     }
 }
 
-fn draw_ball(canvas: &mut [u32], pos: (usize, usize)) {
-    let (x, y) = pos;
-    canvas.fill(BG_COLOR);
-    draw_circle(canvas, WIDTH, x, y, BALL_DIAMETER, BALL_COLOR);
+fn draw_ball(canvas: &mut [u32], canvas_stride: usize, game_state: &GameState) {
+    let (x, y) = to_screen_coords(game_state.ball_pos_x, game_state.ball_pos_y);
+    canvas.fill(game_state.background_color);
+    let screen_diameter = (game_state.ball_diameter * canvas_stride as f32) as usize;
+    draw_circle(
+        canvas,
+        canvas_stride,
+        x,
+        y,
+        screen_diameter,
+        game_state.ball_color,
+    );
 }
 
 fn compute_text_data(font: &Font, text_height: f32, text: &str) -> (Vec<u32>, usize) {
@@ -147,34 +151,37 @@ struct GameState {
     ball_pos_y: f32,
     ball_vel_x: f32,
     ball_vel_y: f32,
+    ball_diameter: f32,
+    ball_color: u32,
+    background_color: u32,
 }
 
 impl GameState {
     fn tick(&mut self) {
-        const MAX_X: f32 = 1.0 - (BALL_DIAMETER as f32 / WIDTH as f32 * 2.0);
-        const MAX_Y: f32 = 1.0 - (BALL_DIAMETER as f32 / HEIGHT as f32 * 2.0);
+        let max_x = 1.0 - (self.ball_diameter * 2.0);
+        let max_y = 1.0 - (self.ball_diameter * 2.0);
 
         let dx = self.ball_pos_x + self.ball_vel_x;
         let dy = self.ball_pos_y + self.ball_vel_y;
 
-        if dx <= -1.0 || dx >= MAX_X {
+        if dx <= -1.0 || dx >= max_x {
             self.ball_vel_x = -self.ball_vel_x;
         }
 
-        if dy <= -1.0 || dy >= MAX_Y {
+        if dy <= -1.0 || dy >= max_y {
             self.ball_vel_y = -self.ball_vel_y;
         }
 
-        self.ball_pos_x = if dx > MAX_X {
-            MAX_X - (dx - MAX_X)
+        self.ball_pos_x = if dx > max_x {
+            max_x - (dx - max_x)
         } else if dx < -1.0 {
             -1.0 + (-1.0 - dx)
         } else {
             dx
         };
 
-        self.ball_pos_y = if dy > MAX_Y {
-            MAX_Y - (dy - MAX_Y)
+        self.ball_pos_y = if dy > max_y {
+            max_y - (dy - max_y)
         } else if dy < -1.0 {
             -1.0 + (-1.0 - dy)
         } else {
@@ -185,6 +192,20 @@ impl GameState {
     fn update_ball_speed(&mut self, factor: f32) {
         self.ball_vel_x *= factor;
         self.ball_vel_y *= factor;
+    }
+}
+
+impl Default for GameState {
+    fn default() -> Self {
+        GameState {
+            ball_pos_x: 0.0,
+            ball_pos_y: 0.0,
+            ball_vel_x: 0.0039,
+            ball_vel_y: 0.0024,
+            ball_diameter: 0.0133,
+            ball_color: MAGENTA,
+            background_color: CYAN,
+        }
     }
 }
 
@@ -210,12 +231,7 @@ pub fn main() -> Res<()> {
         })
     };
 
-    let mut game_state = GameState {
-        ball_pos_x: 0.0,
-        ball_pos_y: 0.0,
-        ball_vel_x: 0.005,
-        ball_vel_y: -0.002,
-    };
+    let mut game_state = GameState::default();
 
     // Limit to max ~60 fps update rate
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
@@ -223,10 +239,7 @@ pub fn main() -> Res<()> {
     while window.is_open() && !window.is_key_down(Key::Escape) {
         game_state.tick();
 
-        draw_ball(
-            &mut buffer,
-            to_screen_coords(game_state.ball_pos_x, game_state.ball_pos_y),
-        );
+        draw_ball(&mut buffer, WIDTH, &game_state);
 
         if DEBUG_STATS {
             draw_debug_stats(&mut buffer, &font, DEBUG_TEXT_SIZE, &game_state);
