@@ -6,6 +6,7 @@ const HEIGHT: usize = 600;
 
 const MAGENTA: u32 = 0xFF00FF;
 const CYAN: u32 = 0x00FFFF;
+const YELLOW: u32 = 0xFFFF00;
 
 const DEBUG_STATS: bool = true;
 const DEBUG_TEXT_SIZE: f32 = 16.0;
@@ -154,6 +155,11 @@ struct GameState {
     ball_diameter: f32,
     ball_color: u32,
     background_color: u32,
+    paddle_pos_x: f32,
+    paddle_pos_y: f32,
+    paddle_width: f32,
+    paddle_height: f32,
+    paddle_color: u32,
 }
 
 impl GameState {
@@ -205,6 +211,11 @@ impl Default for GameState {
             ball_diameter: 0.0133,
             ball_color: MAGENTA,
             background_color: CYAN,
+            paddle_pos_x: 0.04,
+            paddle_pos_y: -0.8,
+            paddle_width: 0.08,
+            paddle_height: 0.02,
+            paddle_color: YELLOW,
         }
     }
 }
@@ -240,6 +251,17 @@ pub fn main() -> Res<()> {
         game_state.tick();
 
         draw_ball(&mut buffer, WIDTH, &game_state);
+
+        // Draw paddle
+        let (paddle_screen_x, paddle_screen_y) =
+            to_screen_coords(game_state.paddle_pos_x, game_state.paddle_pos_y);
+        let paddle_screen_width = (game_state.paddle_width * WIDTH as f32).ceil() as usize;
+        let paddle_screen_height = (game_state.paddle_height * HEIGHT as f32).ceil() as usize;
+        for row in paddle_screen_y..paddle_screen_y + paddle_screen_height {
+            buffer[paddle_screen_x + row * WIDTH
+                ..paddle_screen_x + paddle_screen_width + row * WIDTH]
+                .fill(game_state.paddle_color);
+        }
 
         if DEBUG_STATS {
             draw_debug_stats(&mut buffer, &font, DEBUG_TEXT_SIZE, &game_state);
