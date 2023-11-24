@@ -10,6 +10,28 @@ const YELLOW: u32 = 0xFFFF00;
 
 type Res<T> = Result<T, ()>;
 
+fn dot_product(x1: f32, y1: f32, x2: f32, y2: f32) -> f32 {
+    x1 * x2 + y1 * y2
+}
+
+fn magnitude(x: f32, y: f32) -> f32 {
+    (x * x + y * y).sqrt()
+}
+
+fn normalize(x: f32, y: f32) -> (f32, f32) {
+    let sum_of_sqaures = x * x + y * y;
+    let magnitude = sum_of_sqaures.sqrt();
+    (x / magnitude, y / magnitude)
+}
+
+fn reflect(x: f32, y: f32, x_norm: f32, y_norm: f32) -> (f32, f32) {
+    let (xn, yn) = normalize(x_norm, y_norm);
+    let dot = dot_product(x, y, xn, yn);
+    let x_reflect = x_norm * 2.0 * dot;
+    let y_reflect = y_norm * 2.0 * dot;
+    (x - x_reflect, y - y_reflect)
+}
+
 fn to_screen_coords(world_x: f32, world_y: f32) -> (usize, usize) {
     let x = (WIDTH as f32 * (1.0 + world_x) / 2.0) as usize;
     let y = HEIGHT - (HEIGHT as f32 * (1.0 + world_y) / 2.0) as usize;
@@ -211,9 +233,21 @@ impl GameState {
         let dx = self.ball_pos_x + self.ball_vel_x;
         let dy = self.ball_pos_y + self.ball_vel_y;
 
-        if let Some(_location) = self.paddle_collision() {
-            self.ball_vel_y *= -1.0;
+        if let Some(location) = self.paddle_collision() {
+            let (rx, ry) = if location < 0.33 {
+                (-1.0, 1.0)
+            } else if location < 0.66 {
+                (0.0, 1.0)
+            } else {
+                (1.0, 1.0)
+            };
+            let original_magnitude = magnitude(self.ball_vel_x, self.ball_vel_y);
+            let (vx, vy) = reflect(self.ball_vel_x, self.ball_vel_y, rx, ry);
+            let (nvx, nvy) = normalize(vx, vy);
+            self.ball_vel_x = nvx * original_magnitude;
+            self.ball_vel_y = nvy * original_magnitude;
         }
+
         if dx <= -1.0 || dx >= max_x {
             self.ball_vel_x = -self.ball_vel_x;
         }
