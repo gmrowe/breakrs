@@ -56,6 +56,22 @@ fn draw_rect(
     }
 }
 
+fn draw_paddle(canvas: &mut [u32], canvas_stride: usize, game_state: &GameState) {
+    let (x, y) = to_screen_coords(game_state.paddle_pos_x, game_state.paddle_pos_y);
+    let screen_height = canvas.len() / canvas_stride;
+    let width = (game_state.paddle_width / 2.0 * canvas_stride as f32) as usize;
+    let height = (game_state.paddle_height / 2.0 * screen_height as f32) as usize;
+    draw_rect(
+        canvas,
+        canvas_stride,
+        x,
+        y,
+        width,
+        height,
+        game_state.paddle_color,
+    );
+}
+
 fn draw_ball(canvas: &mut [u32], canvas_stride: usize, game_state: &GameState) {
     let (x, y) = to_screen_coords(game_state.ball_pos_x, game_state.ball_pos_y);
     canvas.fill(game_state.background_color);
@@ -180,6 +196,25 @@ struct GameState {
 }
 
 impl GameState {
+    fn paddle_collision(&self) -> Option<f32> {
+        let dx = self.ball_pos_x + self.ball_vel_x;
+        let dy = self.ball_pos_y + self.ball_vel_y;
+
+        if self.ball_vel_y < 0.0
+            && dx + self.ball_diameter >= self.paddle_pos_x
+            && dx < self.paddle_pos_x + self.paddle_width
+            && dy - self.ball_diameter <= self.paddle_pos_y
+            && dy >= self.paddle_pos_y - self.paddle_height
+        {
+            let extreme_left = self.paddle_pos_x - self.ball_diameter;
+            let extreme_right = self.paddle_pos_x + self.paddle_width;
+            let hit_location = (dx - extreme_left) / (extreme_right - extreme_left);
+            Some(hit_location)
+        } else {
+            None
+        }
+    }
+
     fn update_ball_pos(&mut self) {
         let max_x = 1.0 - self.ball_diameter;
         let min_y = -1.0 + self.ball_diameter;
@@ -187,6 +222,9 @@ impl GameState {
         let dx = self.ball_pos_x + self.ball_vel_x;
         let dy = self.ball_pos_y + self.ball_vel_y;
 
+        if let Some(_location) = self.paddle_collision() {
+            self.ball_vel_y *= -1.0;
+        }
         if dx <= -1.0 || dx >= max_x {
             self.ball_vel_x = -self.ball_vel_x;
         }
@@ -278,23 +316,8 @@ pub fn main() -> Res<()> {
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         game_state.tick();
-
         draw_ball(&mut buffer, WIDTH, &game_state);
-
-        // Draw paddle
-        let (paddle_screen_x, paddle_screen_y) =
-            to_screen_coords(game_state.paddle_pos_x, game_state.paddle_pos_y);
-        let paddle_screen_width = (game_state.paddle_width * WIDTH as f32 / 2.0).ceil() as usize;
-        let paddle_screen_height = (game_state.paddle_height * HEIGHT as f32 / 2.0).ceil() as usize;
-        draw_rect(
-            &mut buffer,
-            WIDTH,
-            paddle_screen_x,
-            paddle_screen_y,
-            paddle_screen_width,
-            paddle_screen_height,
-            game_state.paddle_color,
-        );
+        draw_paddle(&mut buffer, WIDTH, &game_state);
 
         if DEBUG_STATS {
             draw_debug_stats(&mut buffer, &font, DEBUG_TEXT_SIZE, &game_state);
