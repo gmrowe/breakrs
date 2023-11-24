@@ -249,22 +249,30 @@ impl GameState {
     }
 
     fn draw_debug_stats(&self, canvas: &mut [u32], canvas_stride: usize) {
-        let position = format!(
-            "pos: ({pos_x:+.3}, {pos_y:+.3})",
+        let ball_position = format!(
+            "{pos:<12} ({pos_x:+.3}, {pos_y:+.3})",
+            pos = "pos:",
             pos_x = self.ball_pos_x,
             pos_y = self.ball_pos_y
         );
-        let velocity = format!(
-            "vel: ({vel_x:+.3}, {vel_y:+.3})",
+        let ball_velocity = format!(
+            "{vel:<12} ({vel_x:+.3}, {vel_y:+.3})",
+            vel = "vel:",
             vel_x = self.ball_vel_x,
             vel_y = self.ball_vel_y
+        );
+        let paddle_pos = format!(
+            "{pos:<12} ({pos_x:+.3}, {pos_y:+.3})",
+            pos = "paddle_pos:",
+            pos_x = self.paddle_pos_x,
+            pos_y = self.paddle_pos_y
         );
         let (text_data, stride) = compute_multiline_text_data(
             self.font
                 .as_ref()
                 .expect("Method is only called if font.is_some()"),
             self.debug_stats_height,
-            &[&position, &velocity],
+            &[&ball_position, &ball_velocity, &paddle_pos],
         );
         draw_text(canvas, canvas_stride, &text_data, stride, (0, 0));
     }
