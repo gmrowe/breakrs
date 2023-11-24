@@ -8,9 +8,6 @@ const MAGENTA: u32 = 0xFF00FF;
 const CYAN: u32 = 0x00FFFF;
 const YELLOW: u32 = 0xFFFF00;
 
-const DEBUG_STATS: bool = true;
-const DEBUG_TEXT_SIZE: f32 = 16.0;
-
 type Res<T> = Result<T, ()>;
 
 fn to_screen_coords(world_x: f32, world_y: f32) -> (usize, usize) {
@@ -132,23 +129,10 @@ fn draw_text(
     }
 }
 
-fn draw_debug_stats(canvas: &mut [u32], font: &Font, text_height: f32, game_state: &GameState) {
-    let position = format!(
-        "pos: ({pos_x:+.3}, {pos_y:+.3})",
-        pos_x = game_state.ball_pos_x,
-        pos_y = game_state.ball_pos_y
-    );
-    let velocity = format!(
-        "vel: ({vel_x:+.3}, {vel_y:+.3})",
-        vel_x = game_state.ball_vel_x,
-        vel_y = game_state.ball_vel_y
-    );
-    let (text_data, stride) =
-        compute_multiline_text_data(font, text_height, &[&position, &velocity]);
-    draw_text(canvas, WIDTH, &text_data, stride, (0, 0));
-}
-
 struct GameState {
+    debug_stats: bool,
+    debug_stats_height: f32,
+    font: Option<Font<'static>>,
     ball_pos_x: f32,
     ball_pos_y: f32,
     ball_vel_x: f32,
@@ -264,16 +248,39 @@ impl GameState {
         );
     }
 
+    fn draw_debug_stats(&self, canvas: &mut [u32], font: &Font, text_height: f32) {
+        let position = format!(
+            "pos: ({pos_x:+.3}, {pos_y:+.3})",
+            pos_x = self.ball_pos_x,
+            pos_y = self.ball_pos_y
+        );
+        let velocity = format!(
+            "vel: ({vel_x:+.3}, {vel_y:+.3})",
+            vel_x = self.ball_vel_x,
+            vel_y = self.ball_vel_y
+        );
+        let (text_data, stride) =
+            compute_multiline_text_data(font, text_height, &[&position, &velocity]);
+        draw_text(canvas, WIDTH, &text_data, stride, (0, 0));
+    }
+
     fn draw_all(&self, canvas: &mut [u32], canvas_stride: usize) {
         canvas.fill(self.background_color);
         self.draw_ball(canvas, canvas_stride);
         self.draw_paddle(canvas, canvas_stride);
+        if self.debug_stats && self.font.is_some() {
+            let font = self.font.as_ref().expect("Font is some");
+            self.draw_debug_stats(canvas, font, self.debug_stats_height);
+        }
     }
 }
 
 impl Default for GameState {
     fn default() -> Self {
         GameState {
+            font: None,
+            debug_stats: true,
+            debug_stats_height: 16.0,
             ball_pos_x: 0.0,
             ball_pos_y: 0.0,
             ball_vel_x: 0.0039,
@@ -314,7 +321,11 @@ pub fn main() -> Res<()> {
         })
     };
 
-    let mut game_state = GameState::default();
+    let mut game_state = GameState {
+        font: Some(font),
+        debug_stats: true,
+        ..GameState::default()
+    };
 
     // Limit to max ~60 fps update rate
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
@@ -322,10 +333,6 @@ pub fn main() -> Res<()> {
     while window.is_open() && !window.is_key_down(Key::Escape) {
         game_state.tick();
         game_state.draw_all(&mut buffer, WIDTH);
-
-        if DEBUG_STATS {
-            draw_debug_stats(&mut buffer, &font, DEBUG_TEXT_SIZE, &game_state);
-        }
 
         window
             .update_with_buffer(&buffer, WIDTH, HEIGHT)
