@@ -248,7 +248,7 @@ impl GameState {
         );
     }
 
-    fn draw_debug_stats(&self, canvas: &mut [u32], font: &Font, text_height: f32) {
+    fn draw_debug_stats(&self, canvas: &mut [u32], canvas_stride: usize) {
         let position = format!(
             "pos: ({pos_x:+.3}, {pos_y:+.3})",
             pos_x = self.ball_pos_x,
@@ -259,9 +259,14 @@ impl GameState {
             vel_x = self.ball_vel_x,
             vel_y = self.ball_vel_y
         );
-        let (text_data, stride) =
-            compute_multiline_text_data(font, text_height, &[&position, &velocity]);
-        draw_text(canvas, WIDTH, &text_data, stride, (0, 0));
+        let (text_data, stride) = compute_multiline_text_data(
+            self.font
+                .as_ref()
+                .expect("Method is only called if font.is_some()"),
+            self.debug_stats_height,
+            &[&position, &velocity],
+        );
+        draw_text(canvas, canvas_stride, &text_data, stride, (0, 0));
     }
 
     fn draw_all(&self, canvas: &mut [u32], canvas_stride: usize) {
@@ -269,8 +274,7 @@ impl GameState {
         self.draw_ball(canvas, canvas_stride);
         self.draw_paddle(canvas, canvas_stride);
         if self.debug_stats && self.font.is_some() {
-            let font = self.font.as_ref().expect("Font is some");
-            self.draw_debug_stats(canvas, font, self.debug_stats_height);
+            self.draw_debug_stats(canvas, canvas_stride);
         }
     }
 }
