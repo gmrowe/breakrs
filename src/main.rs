@@ -41,10 +41,25 @@ fn draw_circle(
     }
 }
 
+fn draw_rect(
+    canvas: &mut [u32],
+    canvas_stride: usize,
+    x: usize,
+    y: usize,
+    width: usize,
+    height: usize,
+    color: u32,
+) {
+    for row in y..y + height {
+        let start = x + canvas_stride * row;
+        canvas[start..start + width].fill(color);
+    }
+}
+
 fn draw_ball(canvas: &mut [u32], canvas_stride: usize, game_state: &GameState) {
     let (x, y) = to_screen_coords(game_state.ball_pos_x, game_state.ball_pos_y);
     canvas.fill(game_state.background_color);
-    let screen_diameter = (game_state.ball_diameter * canvas_stride as f32) as usize;
+    let screen_diameter = (game_state.ball_diameter * canvas_stride as f32 / 2.0) as usize;
     draw_circle(
         canvas,
         canvas_stride,
@@ -160,13 +175,14 @@ struct GameState {
     paddle_width: f32,
     paddle_height: f32,
     paddle_vel_x: f32,
+    paddle_movement_speed: f32,
     paddle_color: u32,
 }
 
 impl GameState {
     fn update_ball_pos(&mut self) {
-        let max_x = 1.0 - (self.ball_diameter * 2.0);
-        let min_y = -1.0 + (self.ball_diameter * 2.0);
+        let max_x = 1.0 - self.ball_diameter;
+        let min_y = -1.0 + self.ball_diameter;
 
         let dx = self.ball_pos_x + self.ball_vel_x;
         let dy = self.ball_pos_y + self.ball_vel_y;
@@ -197,7 +213,7 @@ impl GameState {
     }
 
     fn update_paddle_pos(&mut self) {
-        let max_x = 1.0 - (self.paddle_width * 2.0);
+        let max_x = 1.0 - self.paddle_width;
         self.paddle_pos_x = (self.paddle_pos_x + self.paddle_vel_x).clamp(-1.0, max_x);
     }
 
@@ -219,14 +235,15 @@ impl Default for GameState {
             ball_pos_y: 0.0,
             ball_vel_x: 0.0039,
             ball_vel_y: 0.0024,
-            ball_diameter: 0.0133,
+            ball_diameter: 0.032,
             ball_color: MAGENTA,
             background_color: CYAN,
             paddle_pos_x: -0.04,
             paddle_pos_y: -0.8,
-            paddle_width: 0.08,
+            paddle_width: 0.2,
             paddle_height: 0.02,
             paddle_vel_x: 0.0,
+            paddle_movement_speed: 0.016,
             paddle_color: YELLOW,
         }
     }
@@ -267,13 +284,17 @@ pub fn main() -> Res<()> {
         // Draw paddle
         let (paddle_screen_x, paddle_screen_y) =
             to_screen_coords(game_state.paddle_pos_x, game_state.paddle_pos_y);
-        let paddle_screen_width = (game_state.paddle_width * WIDTH as f32).ceil() as usize;
-        let paddle_screen_height = (game_state.paddle_height * HEIGHT as f32).ceil() as usize;
-        for row in paddle_screen_y..paddle_screen_y + paddle_screen_height {
-            buffer[paddle_screen_x + row * WIDTH
-                ..paddle_screen_x + paddle_screen_width + row * WIDTH]
-                .fill(game_state.paddle_color);
-        }
+        let paddle_screen_width = (game_state.paddle_width * WIDTH as f32 / 2.0).ceil() as usize;
+        let paddle_screen_height = (game_state.paddle_height * HEIGHT as f32 / 2.0).ceil() as usize;
+        draw_rect(
+            &mut buffer,
+            WIDTH,
+            paddle_screen_x,
+            paddle_screen_y,
+            paddle_screen_width,
+            paddle_screen_height,
+            game_state.paddle_color,
+        );
 
         if DEBUG_STATS {
             draw_debug_stats(&mut buffer, &font, DEBUG_TEXT_SIZE, &game_state);
@@ -297,11 +318,11 @@ pub fn main() -> Res<()> {
             }
 
             Key::A => {
-                game_state.paddle_vel_x = -0.01;
+                game_state.paddle_vel_x = -game_state.paddle_movement_speed;
             }
 
             Key::D => {
-                game_state.paddle_vel_x = 0.01;
+                game_state.paddle_vel_x = game_state.paddle_movement_speed;
             }
 
             _ => (),
