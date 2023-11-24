@@ -56,22 +56,6 @@ fn draw_rect(
     }
 }
 
-fn draw_paddle(canvas: &mut [u32], canvas_stride: usize, game_state: &GameState) {
-    let (x, y) = to_screen_coords(game_state.paddle_pos_x, game_state.paddle_pos_y);
-    let screen_height = canvas.len() / canvas_stride;
-    let width = (game_state.paddle_width / 2.0 * canvas_stride as f32) as usize;
-    let height = (game_state.paddle_height / 2.0 * screen_height as f32) as usize;
-    draw_rect(
-        canvas,
-        canvas_stride,
-        x,
-        y,
-        width,
-        height,
-        game_state.paddle_color,
-    );
-}
-
 fn compute_text_data(font: &Font, text_height: f32, text: &str) -> (Vec<u32>, usize) {
     let height = text_height.ceil() as usize;
     let scale = Scale::uniform(text_height);
@@ -264,6 +248,22 @@ impl GameState {
             self.ball_color,
         );
     }
+
+    fn draw_paddle(&self, canvas: &mut [u32], canvas_stride: usize) {
+        let (x, y) = to_screen_coords(self.paddle_pos_x, self.paddle_pos_y);
+        let screen_height = canvas.len() / canvas_stride;
+        let width = (self.paddle_width / 2.0 * canvas_stride as f32) as usize;
+        let height = (self.paddle_height / 2.0 * screen_height as f32) as usize;
+        draw_rect(
+            canvas,
+            canvas_stride,
+            x,
+            y,
+            width,
+            height,
+            self.paddle_color,
+        );
+    }
 }
 
 impl Default for GameState {
@@ -317,7 +317,7 @@ pub fn main() -> Res<()> {
     while window.is_open() && !window.is_key_down(Key::Escape) {
         game_state.tick();
         game_state.draw_ball(&mut buffer, WIDTH);
-        draw_paddle(&mut buffer, WIDTH, &game_state);
+        game_state.draw_paddle(&mut buffer, WIDTH);
 
         if DEBUG_STATS {
             draw_debug_stats(&mut buffer, &font, DEBUG_TEXT_SIZE, &game_state);
