@@ -116,6 +116,49 @@ fn draw_subcanvas(canvas: &mut Canvas, subcanvas: &Canvas, pos: (usize, usize)) 
     }
 }
 
+fn game_loop(window: &mut Window, game_state: &mut GameState, canvas: &mut Canvas) -> Res<()> {
+    while window.is_open() && !window.is_key_down(Key::Escape) {
+        game_state.tick();
+        game_state.draw_all(canvas);
+
+        window
+            .update_with_buffer(&canvas.buffer, WIDTH, HEIGHT)
+            .map_err(|err| {
+                eprintln!("ERROR! Failed to update window: {err}");
+            })?;
+
+        window.get_keys().iter().for_each(|key| match key {
+            Key::LeftShift | Key::RightShift => {
+                if window.is_key_down(Key::Equal) {
+                    game_state.update_ball_speed(1.05);
+                }
+            }
+
+            Key::Minus => {
+                game_state.update_ball_speed(0.95);
+            }
+
+            Key::A => {
+                game_state.paddle_vel_x = -game_state.paddle_movement_speed;
+            }
+
+            Key::D => {
+                game_state.paddle_vel_x = game_state.paddle_movement_speed;
+            }
+
+            _ => (),
+        });
+
+        window.get_keys_released().iter().for_each(|key| match key {
+            Key::A | Key::D => {
+                game_state.paddle_vel_x = 0.0;
+            }
+            _ => (),
+        });
+    }
+    Ok(())
+}
+
 struct Canvas {
     buffer: Vec<u32>,
     stride: usize,
@@ -294,16 +337,6 @@ pub fn main() -> Res<()> {
         stride: WIDTH,
     };
 
-    let mut window = Window::new(
-        "BREAKRS - ESC to exit",
-        WIDTH,
-        HEIGHT,
-        WindowOptions::default(),
-    )
-    .map_err(|err| {
-        eprintln!("ERROR! Could not create window: {err}");
-    })?;
-
     let font_path = "fonts/RobotoMono/RobotoMono-VariableFont_wght.ttf";
     let font = {
         let font_path = std::env::current_dir().unwrap().join(font_path);
@@ -319,48 +352,18 @@ pub fn main() -> Res<()> {
         ..GameState::default()
     };
 
+    let mut window = Window::new(
+        "BREAKRS - ESC to exit",
+        WIDTH,
+        HEIGHT,
+        WindowOptions::default(),
+    )
+    .map_err(|err| {
+        eprintln!("ERROR! Could not create window: {err}");
+    })?;
+
     // Limit to max ~60 fps update rate
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
-
-    while window.is_open() && !window.is_key_down(Key::Escape) {
-        game_state.tick();
-        game_state.draw_all(&mut canvas);
-
-        window
-            .update_with_buffer(&canvas.buffer, WIDTH, HEIGHT)
-            .map_err(|err| {
-                eprintln!("ERROR! Failed to update window: {err}");
-            })?;
-
-        window.get_keys().iter().for_each(|key| match key {
-            Key::LeftShift | Key::RightShift => {
-                if window.is_key_down(Key::Equal) {
-                    game_state.update_ball_speed(1.05);
-                }
-            }
-
-            Key::Minus => {
-                game_state.update_ball_speed(0.95);
-            }
-
-            Key::A => {
-                game_state.paddle_vel_x = -game_state.paddle_movement_speed;
-            }
-
-            Key::D => {
-                game_state.paddle_vel_x = game_state.paddle_movement_speed;
-            }
-
-            _ => (),
-        });
-
-        window.get_keys_released().iter().for_each(|key| match key {
-            Key::A | Key::D => {
-                game_state.paddle_vel_x = 0.0;
-            }
-            _ => (),
-        });
-    }
-
+    game_loop(&mut window, &mut game_state, &mut canvas)?;
     Ok(())
 }
