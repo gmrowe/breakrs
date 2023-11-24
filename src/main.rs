@@ -237,7 +237,6 @@ impl GameState {
 
     fn draw_ball(&self, canvas: &mut [u32], canvas_stride: usize) {
         let (x, y) = to_screen_coords(self.ball_pos_x, self.ball_pos_y);
-        canvas.fill(self.background_color);
         let screen_diameter = (self.ball_diameter * canvas_stride as f32 / 2.0) as usize;
         draw_circle(
             canvas,
