@@ -72,20 +72,6 @@ fn draw_paddle(canvas: &mut [u32], canvas_stride: usize, game_state: &GameState)
     );
 }
 
-fn draw_ball(canvas: &mut [u32], canvas_stride: usize, game_state: &GameState) {
-    let (x, y) = to_screen_coords(game_state.ball_pos_x, game_state.ball_pos_y);
-    canvas.fill(game_state.background_color);
-    let screen_diameter = (game_state.ball_diameter * canvas_stride as f32 / 2.0) as usize;
-    draw_circle(
-        canvas,
-        canvas_stride,
-        x,
-        y,
-        screen_diameter,
-        game_state.ball_color,
-    );
-}
-
 fn compute_text_data(font: &Font, text_height: f32, text: &str) -> (Vec<u32>, usize) {
     let height = text_height.ceil() as usize;
     let scale = Scale::uniform(text_height);
@@ -264,6 +250,20 @@ impl GameState {
         self.ball_vel_x *= factor;
         self.ball_vel_y *= factor;
     }
+
+    fn draw_ball(&self, canvas: &mut [u32], canvas_stride: usize) {
+        let (x, y) = to_screen_coords(self.ball_pos_x, self.ball_pos_y);
+        canvas.fill(self.background_color);
+        let screen_diameter = (self.ball_diameter * canvas_stride as f32 / 2.0) as usize;
+        draw_circle(
+            canvas,
+            canvas_stride,
+            x,
+            y,
+            screen_diameter,
+            self.ball_color,
+        );
+    }
 }
 
 impl Default for GameState {
@@ -316,7 +316,7 @@ pub fn main() -> Res<()> {
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         game_state.tick();
-        draw_ball(&mut buffer, WIDTH, &game_state);
+        game_state.draw_ball(&mut buffer, WIDTH);
         draw_paddle(&mut buffer, WIDTH, &game_state);
 
         if DEBUG_STATS {

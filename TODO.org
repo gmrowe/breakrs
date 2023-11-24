@@ -1,0 +1,5 @@
+- [ ] Implement variable bounce angles depending on where paddle is hit
+- [ ] Move draw_paddle to be a method of game_state
+- [ ] Move draw_ball to be a method of game_state
+- [ ] Move game loop out of main()
+- [ ] Move call to canvas.fill() out of draw_ball method
