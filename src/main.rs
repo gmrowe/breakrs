@@ -16,14 +16,7 @@ fn to_screen_coords(world_x: f32, world_y: f32) -> (usize, usize) {
     (x, y)
 }
 
-fn draw_circle(
-    canvas: &mut [u32],
-    canvas_stride: usize,
-    x: usize,
-    y: usize,
-    diameter: usize,
-    color: u32,
-) {
+fn draw_circle(canvas: &mut Canvas, x: usize, y: usize, diameter: usize, color: u32) {
     let radius = diameter / 2;
     let center_x = x + radius;
     let center_y = y + radius;
@@ -32,24 +25,16 @@ fn draw_circle(
             let delta_x = center_x.abs_diff(col);
             let delta_y = center_y.abs_diff(row);
             if delta_x * delta_x + delta_y * delta_y <= radius * radius {
-                canvas[row * canvas_stride + col] = color;
+                canvas.buffer[row * canvas.stride + col] = color;
             }
         }
     }
 }
 
-fn draw_rect(
-    canvas: &mut [u32],
-    canvas_stride: usize,
-    x: usize,
-    y: usize,
-    width: usize,
-    height: usize,
-    color: u32,
-) {
+fn draw_rect(canvas: &mut Canvas, x: usize, y: usize, width: usize, height: usize, color: u32) {
     for row in y..y + height {
-        let start = x + canvas_stride * row;
-        canvas[start..start + width].fill(color);
+        let start = x + canvas.stride * row;
+        canvas.buffer[start..start + width].fill(color);
     }
 }
 
@@ -112,21 +97,20 @@ fn compute_multiline_text_data(font: &Font, text_height: f32, text: &[&str]) -> 
     (multi_line, max_stride)
 }
 
-fn draw_text(
-    canvas: &mut [u32],
-    canvas_stride: usize,
-    text_data: &[u32],
-    text_data_stride: usize,
-    pos: (usize, usize),
-) {
+fn draw_text(canvas: &mut Canvas, text_data: &[u32], text_data_stride: usize, pos: (usize, usize)) {
     let (offset_x, offset_y) = pos;
     let pixel_height = text_data.len() / text_data_stride;
     for y in 0..pixel_height {
         let scanline_start = y * text_data_stride;
-        let canvas_start = offset_x + (y + offset_y) * canvas_stride;
-        canvas[canvas_start..canvas_start + text_data_stride]
+        let canvas_start = offset_x + (y + offset_y) * canvas.stride;
+        canvas.buffer[canvas_start..canvas_start + text_data_stride]
             .copy_from_slice(&text_data[scanline_start..scanline_start + text_data_stride]);
     }
+}
+
+struct Canvas {
+    buffer: Vec<u32>,
+    stride: usize,
 }
 
 struct GameState {
@@ -219,36 +203,21 @@ impl GameState {
         self.ball_vel_y *= factor;
     }
 
-    fn draw_ball(&self, canvas: &mut [u32], canvas_stride: usize) {
+    fn draw_ball(&self, canvas: &mut Canvas) {
         let (x, y) = to_screen_coords(self.ball_pos_x, self.ball_pos_y);
-        let screen_diameter = (self.ball_diameter * canvas_stride as f32 / 2.0) as usize;
-        draw_circle(
-            canvas,
-            canvas_stride,
-            x,
-            y,
-            screen_diameter,
-            self.ball_color,
-        );
+        let screen_diameter = (self.ball_diameter * canvas.stride as f32 / 2.0) as usize;
+        draw_circle(canvas, x, y, screen_diameter, self.ball_color);
     }
 
-    fn draw_paddle(&self, canvas: &mut [u32], canvas_stride: usize) {
+    fn draw_paddle(&self, canvas: &mut Canvas) {
         let (x, y) = to_screen_coords(self.paddle_pos_x, self.paddle_pos_y);
-        let screen_height = canvas.len() / canvas_stride;
-        let width = (self.paddle_width / 2.0 * canvas_stride as f32) as usize;
+        let screen_height = canvas.buffer.len() / canvas.stride;
+        let width = (self.paddle_width / 2.0 * canvas.stride as f32) as usize;
         let height = (self.paddle_height / 2.0 * screen_height as f32) as usize;
-        draw_rect(
-            canvas,
-            canvas_stride,
-            x,
-            y,
-            width,
-            height,
-            self.paddle_color,
-        );
+        draw_rect(canvas, x, y, width, height, self.paddle_color);
     }
 
-    fn draw_debug_stats(&self, canvas: &mut [u32], canvas_stride: usize) {
+    fn draw_debug_stats(&self, canvas: &mut Canvas) {
         let ball_position = format!(
             "{pos:<12} ({pos_x:+.3}, {pos_y:+.3})",
             pos = "pos:",
@@ -274,15 +243,15 @@ impl GameState {
             self.debug_stats_height,
             &[&ball_position, &ball_velocity, &paddle_pos],
         );
-        draw_text(canvas, canvas_stride, &text_data, stride, (0, 0));
+        draw_text(canvas, &text_data, stride, (0, 0));
     }
 
-    fn draw_all(&self, canvas: &mut [u32], canvas_stride: usize) {
-        canvas.fill(self.background_color);
-        self.draw_ball(canvas, canvas_stride);
-        self.draw_paddle(canvas, canvas_stride);
+    fn draw_all(&self, canvas: &mut Canvas) {
+        canvas.buffer.fill(self.background_color);
+        self.draw_ball(canvas);
+        self.draw_paddle(canvas);
         if self.debug_stats && self.font.is_some() {
-            self.draw_debug_stats(canvas, canvas_stride);
+            self.draw_debug_stats(canvas);
         }
     }
 }
@@ -312,7 +281,10 @@ impl Default for GameState {
 }
 
 pub fn main() -> Res<()> {
-    let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
+    let mut canvas = Canvas {
+        buffer: vec![0; WIDTH * HEIGHT],
+        stride: WIDTH,
+    };
 
     let mut window = Window::new(
         "BREAKRS - ESC to exit",
@@ -344,10 +316,10 @@ pub fn main() -> Res<()> {
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         game_state.tick();
-        game_state.draw_all(&mut buffer, WIDTH);
+        game_state.draw_all(&mut canvas);
 
         window
-            .update_with_buffer(&buffer, WIDTH, HEIGHT)
+            .update_with_buffer(&canvas.buffer, WIDTH, HEIGHT)
             .map_err(|err| {
                 eprintln!("ERROR! Failed to update window: {err}");
             })?;
