@@ -264,6 +264,12 @@ impl GameState {
             self.paddle_color,
         );
     }
+
+    fn draw_all(&self, canvas: &mut [u32], canvas_stride: usize) {
+        canvas.fill(self.background_color);
+        self.draw_ball(canvas, canvas_stride);
+        self.draw_paddle(canvas, canvas_stride);
+    }
 }
 
 impl Default for GameState {
@@ -316,8 +322,7 @@ pub fn main() -> Res<()> {
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         game_state.tick();
-        game_state.draw_ball(&mut buffer, WIDTH);
-        game_state.draw_paddle(&mut buffer, WIDTH);
+        game_state.draw_all(&mut buffer, WIDTH);
 
         if DEBUG_STATS {
             draw_debug_stats(&mut buffer, &font, DEBUG_TEXT_SIZE, &game_state);
