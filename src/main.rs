@@ -38,7 +38,7 @@ fn draw_rect(canvas: &mut Canvas, x: usize, y: usize, width: usize, height: usiz
     }
 }
 
-fn compute_text_data(font: &Font, text_height: f32, text: &str) -> (Vec<u32>, usize) {
+fn compute_text_data(font: &Font, text_height: f32, text: &str) -> Canvas {
     let height = text_height.ceil() as usize;
     let scale = Scale::uniform(text_height);
     let v_metrics = font.v_metrics(scale);
@@ -74,37 +74,45 @@ fn compute_text_data(font: &Font, text_height: f32, text: &str) -> (Vec<u32>, us
             })
         }
     }
-    (text_data, width)
+    Canvas {
+        buffer: text_data,
+        stride: width,
+    }
 }
 
-fn compute_multiline_text_data(font: &Font, text_height: f32, text: &[&str]) -> (Vec<u32>, usize) {
+fn compute_multiline_text_data(font: &Font, text_height: f32, text: &[&str]) -> Canvas {
     let lines = text
         .iter()
         .map(|s| compute_text_data(font, text_height, s))
         .collect::<Vec<_>>();
-    let max_stride = lines.iter().map(|&(_, stride)| stride).max().unwrap_or(0);
+    let max_stride = lines.iter().map(|canvas| canvas.stride).max().unwrap_or(0);
     let mut multi_line = Vec::new();
-    for (line, stride) in lines.into_iter() {
-        let height = line.len() / stride;
+    for canvas in lines.into_iter() {
+        let height = canvas.buffer.len() / canvas.stride;
         let mut new_line = Vec::new();
-        let extension = vec![0xFFFFFF_u32; max_stride - stride];
+        let extension = vec![0xFFFFFF_u32; max_stride - canvas.stride];
         for y in 0..height {
-            new_line.extend_from_slice(&line[stride * y..stride * y + stride]);
+            new_line.extend_from_slice(
+                &canvas.buffer[canvas.stride * y..canvas.stride * y + canvas.stride],
+            );
             new_line.extend(&extension)
         }
         multi_line.append(&mut new_line);
     }
-    (multi_line, max_stride)
+    Canvas {
+        buffer: multi_line,
+        stride: max_stride,
+    }
 }
 
-fn draw_text(canvas: &mut Canvas, text_data: &[u32], text_data_stride: usize, pos: (usize, usize)) {
+fn draw_subcanvas(canvas: &mut Canvas, subcanvas: &Canvas, pos: (usize, usize)) {
     let (offset_x, offset_y) = pos;
-    let pixel_height = text_data.len() / text_data_stride;
+    let pixel_height = subcanvas.buffer.len() / subcanvas.stride;
     for y in 0..pixel_height {
-        let scanline_start = y * text_data_stride;
+        let scanline_start = y * subcanvas.stride;
         let canvas_start = offset_x + (y + offset_y) * canvas.stride;
-        canvas.buffer[canvas_start..canvas_start + text_data_stride]
-            .copy_from_slice(&text_data[scanline_start..scanline_start + text_data_stride]);
+        canvas.buffer[canvas_start..canvas_start + subcanvas.stride]
+            .copy_from_slice(&subcanvas.buffer[scanline_start..scanline_start + subcanvas.stride]);
     }
 }
 
@@ -236,14 +244,14 @@ impl GameState {
             pos_x = self.paddle_pos_x,
             pos_y = self.paddle_pos_y
         );
-        let (text_data, stride) = compute_multiline_text_data(
+        let text_canvas = compute_multiline_text_data(
             self.font
                 .as_ref()
                 .expect("Method is only called if font.is_some()"),
             self.debug_stats_height,
             &[&ball_position, &ball_velocity, &paddle_pos],
         );
-        draw_text(canvas, &text_data, stride, (0, 0));
+        draw_subcanvas(canvas, &text_canvas, (0, 0));
     }
 
     fn draw_all(&self, canvas: &mut Canvas) {
