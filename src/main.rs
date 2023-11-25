@@ -233,13 +233,16 @@ impl GameState {
         let dx = self.ball_pos_x + self.ball_vel_x;
         let dy = self.ball_pos_y + self.ball_vel_y;
 
+        // Check for paddle collision
+        let sqrt_3 = 3.0_f32.sqrt();
         if let Some(location) = self.paddle_collision() {
-            let (rx, ry) = if location < 0.33 {
-                (-1.0, 1.0)
-            } else if location < 0.66 {
+            const PADDLE_DIV: f32 = 1.0 / 3.0;
+            let (rx, ry) = if location < PADDLE_DIV {
+                (-1.0, sqrt_3)
+            } else if location < PADDLE_DIV * 2.0 {
                 (0.0, 1.0)
             } else {
-                (1.0, 1.0)
+                (1.0, sqrt_3)
             };
             let original_magnitude = magnitude(self.ball_vel_x, self.ball_vel_y);
             let (vx, vy) = reflect(self.ball_vel_x, self.ball_vel_y, rx, ry);
@@ -248,10 +251,12 @@ impl GameState {
             self.ball_vel_y = nvy * original_magnitude;
         }
 
+        // Check for side walls collision
         if dx <= -1.0 || dx >= max_x {
             self.ball_vel_x = -self.ball_vel_x;
         }
 
+        // Check for top and bottom wall collision
         if dy <= min_y || dy >= 1.0 {
             self.ball_vel_y = -self.ball_vel_y;
         }
@@ -359,7 +364,7 @@ impl Default for GameState {
             paddle_width: 0.2,
             paddle_height: 0.02,
             paddle_vel_x: 0.0,
-            paddle_movement_speed: 0.016,
+            paddle_movement_speed: 0.022,
             paddle_color: YELLOW,
         }
     }
@@ -371,7 +376,7 @@ pub fn main() -> Res<()> {
         stride: WIDTH,
     };
 
-    let font_path = "fonts/RobotoMono/RobotoMono-VariableFont_wght.ttf";
+    let font_path = "/System/Library/Fonts/SFNSMono.ttf";
     let font = {
         let font_path = std::env::current_dir().unwrap().join(font_path);
         let data = std::fs::read(&font_path).unwrap();
