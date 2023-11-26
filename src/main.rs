@@ -38,8 +38,8 @@ fn to_screen_coords(
     screen_width: usize,
     screen_height: usize,
 ) -> (usize, usize) {
-    let x = (screen_width as f32 * (1.0 + world_x) / 2.0) as usize;
-    let y = screen_height - (screen_height as f32 * (1.0 + world_y) / 2.0) as usize;
+    let x = (screen_width as f32 * (1.0 + world_x) / 2.0).ceil() as usize;
+    let y = screen_height - (screen_height as f32 * (1.0 + world_y) / 2.0).ceil() as usize;
     (x, y)
 }
 
@@ -132,12 +132,11 @@ fn compute_multiline_text_data(font: &Font, text_height: f32, text: &[&str]) -> 
     }
 }
 
-fn draw_subcanvas(canvas: &mut Canvas, subcanvas: &Canvas, pos: (usize, usize)) {
-    let (offset_x, offset_y) = pos;
+fn draw_subcanvas(canvas: &mut Canvas, subcanvas: &Canvas, x: usize, y: usize) {
     let pixel_height = subcanvas.buffer.len() / subcanvas.stride;
-    for y in 0..pixel_height {
-        let scanline_start = y * subcanvas.stride;
-        let canvas_start = offset_x + (y + offset_y) * canvas.stride;
+    for row in 0..pixel_height {
+        let scanline_start = row * subcanvas.stride;
+        let canvas_start = x + (row + y) * canvas.stride;
         canvas.buffer[canvas_start..canvas_start + subcanvas.stride]
             .copy_from_slice(&subcanvas.buffer[scanline_start..scanline_start + subcanvas.stride]);
     }
@@ -396,7 +395,7 @@ impl GameState {
             self.debug_stats_height,
             &[&ball_position, &ball_velocity, &paddle_pos],
         );
-        draw_subcanvas(canvas, &text_canvas, (0, 0));
+        draw_subcanvas(canvas, &text_canvas, 0, 0);
     }
 
     fn draw_all(&self, canvas: &mut Canvas) {
