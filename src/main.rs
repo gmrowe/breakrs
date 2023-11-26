@@ -32,9 +32,14 @@ fn reflect(x: f32, y: f32, x_norm: f32, y_norm: f32) -> (f32, f32) {
     (x - x_reflect, y - y_reflect)
 }
 
-fn to_screen_coords(world_x: f32, world_y: f32) -> (usize, usize) {
-    let x = (WIDTH as f32 * (1.0 + world_x) / 2.0) as usize;
-    let y = HEIGHT - (HEIGHT as f32 * (1.0 + world_y) / 2.0) as usize;
+fn to_screen_coords(
+    world_x: f32,
+    world_y: f32,
+    screen_width: usize,
+    screen_height: usize,
+) -> (usize, usize) {
+    let x = (screen_width as f32 * (1.0 + world_x) / 2.0) as usize;
+    let y = screen_height - (screen_height as f32 * (1.0 + world_y) / 2.0) as usize;
     (x, y)
 }
 
@@ -186,6 +191,53 @@ struct Canvas {
     stride: usize,
 }
 
+impl Canvas {
+    fn width(&self) -> usize {
+        self.stride
+    }
+
+    fn height(&self) -> usize {
+        self.buffer.len() / self.stride
+    }
+}
+
+struct Bricks {
+    x_positions: Vec<f32>,
+    y_positions: Vec<f32>,
+    colors: Vec<u32>,
+    width: f32,
+    height: f32,
+}
+
+impl Bricks {
+    fn new() -> Self {
+        let mut x_positions = Vec::new();
+        let mut y_positions = Vec::new();
+        let mut colors = Vec::new();
+        let brick_count = 13;
+        let brick_coverage = 0.90 * 2.0;
+        let width = 0.1385;
+        let gap_count = 14;
+        let gap_width = (2.0 - brick_coverage) / gap_count as f32;
+        let height = width / 3.0;
+        let brick_color = 0x00FF00_u32;
+        for b in 0..brick_count {
+            let brick_x_pos = -1.0 + ((b + 1) as f32 * gap_width) + (b as f32 * width);
+            let brick_y_pos = 0.25;
+            x_positions.push(brick_x_pos);
+            y_positions.push(brick_y_pos);
+            colors.push(brick_color);
+        }
+        Bricks {
+            x_positions,
+            y_positions,
+            colors,
+            width,
+            height,
+        }
+    }
+}
+
 struct GameState {
     debug_stats: bool,
     debug_stats_height: f32,
@@ -204,6 +256,7 @@ struct GameState {
     paddle_vel_x: f32,
     paddle_movement_speed: f32,
     paddle_color: u32,
+    bricks: Bricks,
 }
 
 impl GameState {
@@ -294,13 +347,23 @@ impl GameState {
     }
 
     fn draw_ball(&self, canvas: &mut Canvas) {
-        let (x, y) = to_screen_coords(self.ball_pos_x, self.ball_pos_y);
+        let (x, y) = to_screen_coords(
+            self.ball_pos_x,
+            self.ball_pos_y,
+            canvas.width(),
+            canvas.height(),
+        );
         let screen_diameter = (self.ball_diameter * canvas.stride as f32 / 2.0) as usize;
         draw_circle(canvas, x, y, screen_diameter, self.ball_color);
     }
 
     fn draw_paddle(&self, canvas: &mut Canvas) {
-        let (x, y) = to_screen_coords(self.paddle_pos_x, self.paddle_pos_y);
+        let (x, y) = to_screen_coords(
+            self.paddle_pos_x,
+            self.paddle_pos_y,
+            canvas.width(),
+            canvas.height(),
+        );
         let screen_height = canvas.buffer.len() / canvas.stride;
         let width = (self.paddle_width / 2.0 * canvas.stride as f32) as usize;
         let height = (self.paddle_height / 2.0 * screen_height as f32) as usize;
@@ -343,6 +406,19 @@ impl GameState {
         if self.debug_stats && self.font.is_some() {
             self.draw_debug_stats(canvas);
         }
+
+        let width = (self.bricks.width / 2.0 * canvas.width() as f32).ceil() as usize;
+        let height = (self.bricks.height / 2.0 * canvas.height() as f32).ceil() as usize;
+        for ((brick_x, brick_y), color) in self
+            .bricks
+            .x_positions
+            .iter()
+            .zip(self.bricks.y_positions.iter())
+            .zip(self.bricks.colors.iter())
+        {
+            let (x, y) = to_screen_coords(*brick_x, *brick_y, canvas.width(), canvas.height());
+            draw_rect(canvas, x, y, width, height, *color);
+        }
     }
 }
 
@@ -366,6 +442,7 @@ impl Default for GameState {
             paddle_vel_x: 0.0,
             paddle_movement_speed: 0.022,
             paddle_color: YELLOW,
+            bricks: Bricks::new(),
         }
     }
 }
@@ -376,7 +453,7 @@ pub fn main() -> Res<()> {
         stride: WIDTH,
     };
 
-    let font_path = "/System/Library/Fonts/SFNSMono.ttf";
+    let font_path = "fonts/RobotoMono/RobotoMono-VariableFont_wght.ttf";
     let font = {
         let font_path = std::env::current_dir().unwrap().join(font_path);
         let data = std::fs::read(&font_path).unwrap();
