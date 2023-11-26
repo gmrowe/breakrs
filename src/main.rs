@@ -27,9 +27,12 @@ fn normalize(x: f32, y: f32) -> (f32, f32) {
 fn reflect(x: f32, y: f32, x_norm: f32, y_norm: f32) -> (f32, f32) {
     let (xn, yn) = normalize(x_norm, y_norm);
     let dot = dot_product(x, y, xn, yn);
-    let x_reflect = x_norm * 2.0 * dot;
-    let y_reflect = y_norm * 2.0 * dot;
-    (x - x_reflect, y - y_reflect)
+    let xr = x_norm * 2.0 * dot;
+    let yr = y_norm * 2.0 * dot;
+    let mag = magnitude(x, y);
+    let (x_reflect, y_reflect) = normalize(x - xr, y - yr);
+
+    (x_reflect * mag, y_reflect * mag)
 }
 
 fn to_screen_coords(
@@ -288,6 +291,12 @@ impl GameState {
         // Check for paddle collision
         let sqrt_3 = 3.0_f32.sqrt();
         if let Some(location) = self.paddle_collision() {
+            // The angle of reflection is determined by
+            // where on the paddle the ball hits.
+            // We divide the paddle into thirds. The
+            // first third reflects in the negative x direction
+            // the middle third reflects about a vertical line
+            // the last third reflects in the positive x direction.
             const PADDLE_DIV: f32 = 1.0 / 3.0;
             let (rx, ry) = if location < PADDLE_DIV {
                 (-1.0, sqrt_3)
@@ -296,11 +305,9 @@ impl GameState {
             } else {
                 (1.0, sqrt_3)
             };
-            let original_magnitude = magnitude(self.ball_vel_x, self.ball_vel_y);
             let (vx, vy) = reflect(self.ball_vel_x, self.ball_vel_y, rx, ry);
-            let (nvx, nvy) = normalize(vx, vy);
-            self.ball_vel_x = nvx * original_magnitude;
-            self.ball_vel_y = nvy * original_magnitude;
+            self.ball_vel_x = vx;
+            self.ball_vel_y = vy;
         }
 
         // Check for side walls collision
