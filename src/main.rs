@@ -206,6 +206,7 @@ impl Canvas {
 struct Bricks {
     x_positions: Vec<f32>,
     y_positions: Vec<f32>,
+    is_destroyed: Vec<bool>,
     colors: Vec<u32>,
     width: f32,
     height: f32,
@@ -244,6 +245,7 @@ impl Bricks {
         Bricks {
             x_positions,
             y_positions,
+            is_destroyed: vec![false; brick_count * num_rows],
             colors,
             width,
             height,
@@ -292,6 +294,23 @@ impl GameState {
         }
     }
 
+    fn brick_collision(&self) -> Option<usize> {
+        let dx = self.ball_pos_x + self.ball_vel_x;
+        let dy = self.ball_pos_y + self.ball_vel_y;
+
+        self.bricks
+            .x_positions
+            .iter()
+            .enumerate()
+            .filter(|&(n, _)| !self.bricks.is_destroyed[n])
+            .filter(|&(_, x)| dx + self.ball_diameter >= *x && dx <= *x + self.bricks.width)
+            .find(|&(n, _)| {
+                let y = self.bricks.y_positions[n];
+                dy >= y - self.bricks.height && dy - self.ball_diameter <= y
+            })
+            .map(|(n, _)| n)
+    }
+
     fn update_ball_pos(&mut self) {
         let max_x = 1.0 - self.ball_diameter;
         let min_y = -1.0 + self.ball_diameter;
@@ -319,6 +338,12 @@ impl GameState {
             let (vx, vy) = reflect(self.ball_vel_x, self.ball_vel_y, rx, ry);
             self.ball_vel_x = vx;
             self.ball_vel_y = vy;
+        }
+
+        // Check for brick collision
+        if let Some(index) = self.brick_collision() {
+            self.ball_vel_y *= -1.0;
+            self.bricks.is_destroyed[index] = true;
         }
 
         // Check for side walls collision
@@ -419,15 +444,18 @@ impl GameState {
     fn draw_bricks(&self, canvas: &mut Canvas) {
         let width = (self.bricks.width / 2.0 * canvas.width() as f32).ceil() as usize;
         let height = (self.bricks.height / 2.0 * canvas.height() as f32).ceil() as usize;
-        for ((brick_x, brick_y), color) in self
+        for (((brick_x, brick_y), color), destroyed) in self
             .bricks
             .x_positions
             .iter()
             .zip(self.bricks.y_positions.iter())
             .zip(self.bricks.colors.iter())
+            .zip(self.bricks.is_destroyed.iter())
         {
-            let (x, y) = to_screen_coords(*brick_x, *brick_y, canvas.width(), canvas.height());
-            draw_rect(canvas, x, y, width, height, *color);
+            if !destroyed {
+                let (x, y) = to_screen_coords(*brick_x, *brick_y, canvas.width(), canvas.height());
+                draw_rect(canvas, x, y, width, height, *color);
+            }
         }
     }
 
