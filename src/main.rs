@@ -216,19 +216,30 @@ impl Bricks {
         let mut x_positions = Vec::new();
         let mut y_positions = Vec::new();
         let mut colors = Vec::new();
+        let num_rows = 6;
+        let row_colors = [
+            0xFF0000_u32, // RED
+            0xFFA500_u32, // ORANGE
+            0x008000_u32, // GREEN
+            0x0000FF_u32, // BLUE
+            0x4B0082_u32, // INDIGO
+            0xEE82EE_u32, // VIOLET
+        ];
         let brick_count = 13;
-        let brick_coverage = 0.90 * 2.0;
         let width = 0.1385;
         let gap_count = 14;
-        let gap_width = (2.0 - brick_coverage) / gap_count as f32;
+        let gap_width = (2.0 - (width * brick_count as f32)) / gap_count as f32;
         let height = width / 3.0;
-        let brick_color = 0x00FF00_u32;
-        for b in 0..brick_count {
-            let brick_x_pos = -1.0 + ((b + 1) as f32 * gap_width) + (b as f32 * width);
-            let brick_y_pos = 0.25;
-            x_positions.push(brick_x_pos);
-            y_positions.push(brick_y_pos);
-            colors.push(brick_color);
+        let brick_y_pos = 0.60;
+        for (row, color) in row_colors.iter().enumerate().take(num_rows) {
+            let row_y = brick_y_pos + (row as f32 * (height + gap_width));
+            for b in 0..brick_count {
+                let brick_x_pos = -1.0 + ((b + 1) as f32 * gap_width) + (b as f32 * width);
+
+                x_positions.push(brick_x_pos);
+                y_positions.push(row_y);
+                colors.push(*color);
+            }
         }
         Bricks {
             x_positions,
@@ -405,14 +416,7 @@ impl GameState {
         draw_subcanvas(canvas, &text_canvas, 0, 0);
     }
 
-    fn draw_all(&self, canvas: &mut Canvas) {
-        canvas.buffer.fill(self.background_color);
-        self.draw_ball(canvas);
-        self.draw_paddle(canvas);
-        if self.debug_stats && self.font.is_some() {
-            self.draw_debug_stats(canvas);
-        }
-
+    fn draw_bricks(&self, canvas: &mut Canvas) {
         let width = (self.bricks.width / 2.0 * canvas.width() as f32).ceil() as usize;
         let height = (self.bricks.height / 2.0 * canvas.height() as f32).ceil() as usize;
         for ((brick_x, brick_y), color) in self
@@ -424,6 +428,17 @@ impl GameState {
         {
             let (x, y) = to_screen_coords(*brick_x, *brick_y, canvas.width(), canvas.height());
             draw_rect(canvas, x, y, width, height, *color);
+        }
+    }
+
+    fn draw_all(&self, canvas: &mut Canvas) {
+        canvas.buffer.fill(self.background_color);
+        self.draw_ball(canvas);
+        self.draw_paddle(canvas);
+        self.draw_bricks(canvas);
+
+        if self.debug_stats && self.font.is_some() {
+            self.draw_debug_stats(canvas);
         }
     }
 }
